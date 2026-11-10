@@ -1,0 +1,43 @@
+# ============================================================================
+# LectureAssistant — Git Yoksayma Kuralları (.gitignore)
+# ============================================================================
+
+# 1. Gizli Anahtarlar ve Ortam Değişkenleri (KESİNLİKLE GIT'E EKLENMEZ)
+.env
+.env.*
+!.env.example
+
+# 2. Kullanıcı Ses Kayıtları, Geçici Dosyalar ve Yerel Veri Saklama
+.local_storage/
+uploads/
+temp/
+tmp/
+*.mp3
+*.wav
+*.m4a
+*.ogg
+*.flac
+*.webm
+
+# 3. Bağımlılık ve Çalışma Zamanı Klasörleri (Dil/Framework Bağımsız)
+node_modules/
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+dist/
+build/
+.next/
+out/
+coverage/
+.pytest_cache/
+
+# 4. İşletim Sistemi ve Editör Dosyaları
+.DS_Store
+Thumbs.db
+*.log
+.idea/
+.vscode/*
+!.vscode/extensions.json
+

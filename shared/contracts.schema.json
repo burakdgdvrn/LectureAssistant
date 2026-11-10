@@ -1,0 +1,268 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://lectureassistant.local/schemas/contracts.schema.json",
+  "title": "LectureAssistant Canonical Domain & Interface Contracts",
+  "description": "Programlama dili ve framework seçiminden bağımsız olarak tüm LectureAssistant modüllerinin uymak zorunda olduğu ortak veri sözleşmeleri.",
+  "$defs": {
+    "AudioMetadata": {
+      "type": "object",
+      "description": "audio/ modülü tarafından doğrulanmış ses dosyası üst verisi.",
+      "required": ["original_filename", "mime_type", "format", "size_bytes"],
+      "properties": {
+        "original_filename": { "type": "string", "minLength": 1 },
+        "mime_type": { "type": "string", "minLength": 1 },
+        "format": {
+          "type": "string",
+          "enum": ["mp3", "wav", "m4a", "ogg", "webm"]
+        },
+        "size_bytes": { "type": "integer", "minimum": 1 },
+        "duration_seconds": { "type": "number", "minimum": 0 }
+      },
+      "additionalProperties": false
+    },
+    "Lecture": {
+      "type": "object",
+      "description": "Yüklenen bir ders kaydının yaşam döngüsü ve durum modeli.",
+      "required": ["lecture_id", "title", "status", "audio_metadata", "created_at"],
+      "properties": {
+        "lecture_id": { "type": "string", "pattern": "^lec_[a-zA-Z0-9_-]+$" },
+        "title": { "type": "string", "minLength": 1 },
+        "status": {
+          "type": "string",
+          "enum": ["uploaded", "transcribing", "chunking", "indexing", "ready", "failed"]
+        },
+        "audio_metadata": { "$ref": "#/$defs/AudioMetadata" },
+        "created_at": { "type": "string", "format": "date-time" },
+        "error_message": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "TranscriptSegment": {
+      "type": "object",
+      "description": "transcription/ modülü tarafından normalize edilen en küçük zaman damgalı konuşma birimi.",
+      "required": ["segment_id", "start_time", "end_time", "text"],
+      "properties": {
+        "segment_id": { "type": "string", "pattern": "^seg_[a-zA-Z0-9_-]+$" },
+        "start_time": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Segmentin başlangıç zamanı (saniye)."
+        },
+        "end_time": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Segmentin bitiş zamanı (saniye, start_time değerinden büyük olmalıdır)."
+        },
+        "text": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": false
+    },
+    "Transcript": {
+      "type": "object",
+      "description": "Bir ders kaydının normalize edilmiş tam zaman damgalı transkripti.",
+      "required": ["lecture_id", "language", "duration_seconds", "segments"],
+      "properties": {
+        "lecture_id": { "type": "string", "pattern": "^lec_[a-zA-Z0-9_-]+$" },
+        "language": { "type": "string", "minLength": 2 },
+        "duration_seconds": { "type": "number", "minimum": 0 },
+        "segments": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/TranscriptSegment" }
+        }
+      },
+      "additionalProperties": false
+    },
+    "TranscriptChunk": {
+      "type": "object",
+      "description": "chunking/ modülü tarafından üretilen, RAG ve kaynak doğrulamanın temel birimi olan benzersiz kimlikli transkript parçası.",
+      "required": [
+        "chunk_id",
+        "lecture_id",
+        "chunk_index",
+        "start_time",
+        "end_time",
+        "text",
+        "segment_ids"
+      ],
+      "properties": {
+        "chunk_id": {
+          "type": "string",
+          "pattern": "^chk_[a-zA-Z0-9_-]+$",
+          "description": "Her parçaya sistem tarafından atanan benzersiz kimlik. LLM kaynak olarak yalnızca bu kimliği döndürür."
+        },
+        "lecture_id": { "type": "string", "pattern": "^lec_[a-zA-Z0-9_-]+$" },
+        "chunk_index": { "type": "integer", "minimum": 0 },
+        "start_time": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Parçanın kapsadığı ilk segmentin başlangıç zamanı (saniye)."
+        },
+        "end_time": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Parçanın kapsadığı son segmentin bitiş zamanı (saniye)."
+        },
+        "text": { "type": "string", "minLength": 1 },
+        "segment_ids": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "pattern": "^seg_[a-zA-Z0-9_-]+$" }
+        }
+      },
+      "additionalProperties": false
+    },
+    "LLMGroundedAnswerPayload": {
+      "type": "object",
+      "description": "LLM'den dönmesi beklenen ham yapılandırılmış yanıt şeması. DİKKAT: LLM zaman damgası (start_time/end_time) döndüremez, yalnızca cited_chunk_ids döndürür.",
+      "required": ["is_answerable", "answer", "cited_chunk_ids"],
+      "properties": {
+        "is_answerable": {
+          "type": "boolean",
+          "description": "Sorunun cevabı sağlanan ders parçalarında mevcutsa true, değilse false."
+        },
+        "answer": { "type": "string", "minLength": 1 },
+        "cited_chunk_ids": {
+          "type": "array",
+          "items": { "type": "string", "pattern": "^chk_[a-zA-Z0-9_-]+$" }
+        }
+      },
+      "additionalProperties": false
+    },
+    "Citation": {
+      "type": "object",
+      "description": "qa/ veya study_materials/ tarafından chunk_id doğrulanarak gerçek zaman aralıklarıyla eşleştirilmiş kaynak referansı.",
+      "required": ["chunk_id", "start_time", "end_time", "quote_text"],
+      "properties": {
+        "chunk_id": { "type": "string", "pattern": "^chk_[a-zA-Z0-9_-]+$" },
+        "start_time": { "type": "number", "minimum": 0 },
+        "end_time": { "type": "number", "minimum": 0 },
+        "quote_text": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": false
+    },
+    "QAResponse": {
+      "type": "object",
+      "description": "Kullanıcıya döndürülen doğrulanmış soru-cevap yanıt sözleşmesi.",
+      "required": ["lecture_id", "question", "status", "answer", "citations"],
+      "properties": {
+        "lecture_id": { "type": "string", "pattern": "^lec_[a-zA-Z0-9_-]+$" },
+        "question": { "type": "string", "minLength": 1 },
+        "status": {
+          "type": "string",
+          "enum": ["answered", "unanswerable_from_recording"]
+        },
+        "answer": { "type": "string", "minLength": 1 },
+        "citations": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/Citation" }
+        }
+      },
+      "additionalProperties": false
+    },
+    "SummarySection": {
+      "type": "object",
+      "description": "P1 Ders özetinin kaynak doğrulanmış bir bölümü.",
+      "required": ["heading", "summary_text", "citations"],
+      "properties": {
+        "heading": { "type": "string", "minLength": 1 },
+        "summary_text": { "type": "string", "minLength": 1 },
+        "citations": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/Citation" }
+        }
+      },
+      "additionalProperties": false
+    },
+    "SummaryResult": {
+      "type": "object",
+      "description": "P1 Map-Reduce tabanlı ders özeti çıktısı.",
+      "required": ["lecture_id", "overview", "sections"],
+      "properties": {
+        "lecture_id": { "type": "string", "pattern": "^lec_[a-zA-Z0-9_-]+$" },
+        "overview": { "type": "string", "minLength": 1 },
+        "sections": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/SummarySection" }
+        }
+      },
+      "additionalProperties": false
+    },
+    "Flashcard": {
+      "type": "object",
+      "description": "P1 Kaynak doğrulanmış soru-cevap çalışma kartı.",
+      "required": ["card_id", "front_prompt", "back_answer", "citations"],
+      "properties": {
+        "card_id": { "type": "string", "minLength": 1 },
+        "front_prompt": { "type": "string", "minLength": 1 },
+        "back_answer": { "type": "string", "minLength": 1 },
+        "citations": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/Citation" }
+        }
+      },
+      "additionalProperties": false
+    },
+    "QuizQuestion": {
+      "type": "object",
+      "description": "P1 Kaynak doğrulanmış çoktan seçmeli sınav sorusu.",
+      "required": [
+        "question_id",
+        "question_text",
+        "options",
+        "correct_option_index",
+        "explanation",
+        "citations"
+      ],
+      "properties": {
+        "question_id": { "type": "string", "minLength": 1 },
+        "question_text": { "type": "string", "minLength": 1 },
+        "options": {
+          "type": "array",
+          "minItems": 4,
+          "maxItems": 4,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "correct_option_index": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 3
+        },
+        "explanation": { "type": "string", "minLength": 1 },
+        "citations": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/Citation" }
+        }
+      },
+      "additionalProperties": false
+    },
+    "StandardError": {
+      "type": "object",
+      "description": "Kullanıcıya hassas sistem detayı veya secret sızdırmadan döndürülen standart hata zarfı.",
+      "required": ["error_code", "user_message", "retryable"],
+      "properties": {
+        "error_code": {
+          "type": "string",
+          "enum": [
+            "INVALID_AUDIO_FORMAT",
+            "AUDIO_TOO_LARGE",
+            "EMPTY_OR_CORRUPT_AUDIO",
+            "TRANSCRIPTION_FAILED",
+            "PROVIDER_TIMEOUT",
+            "PROVIDER_UNAVAILABLE",
+            "LECTURE_NOT_FOUND",
+            "VALIDATION_ERROR",
+            "INTERNAL_ERROR"
+          ]
+        },
+        "user_message": { "type": "string", "minLength": 1 },
+        "retryable": { "type": "boolean" }
+      },
+      "additionalProperties": false
+    }
+  }
+}
+

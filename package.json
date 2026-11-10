@@ -1,0 +1,20 @@
+{
+  "name": "lectureassistant",
+  "version": "0.1.0",
+  "private": true,
+  "description": "LectureAssistant — AI destekli ders ses kaydı çalışma asistanı",
+  "type": "module",
+  "scripts": {
+    "test": "node --test tests/verify_skeleton.mjs tests/*.test.mjs"
+  },
+  "keywords": [
+    "lecture",
+    "assistant",
+    "transcription",
+    "grounded-qa",
+    "citations",
+    "rag"
+  ],
+  "author": "",
+  "license": "ISC"
+}
