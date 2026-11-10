@@ -69,3 +69,4 @@ Geliştirme için `.env.example` dosyasını `.env` olarak kopyalayın:
 cp .env.example .env
 ```
 *(Gerçek API anahtarlarınızı yalnızca yerel `.env` dosyanızda tutun; `.env` dosyası Git tarafından yoksayılmaktadır).*
+
